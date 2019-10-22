@@ -23,6 +23,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <pthread.h>
 #include <sys/auxv.h>
 
 static inline void update(uint32_t state[2], const uint32_t data[2])
@@ -94,9 +95,9 @@ void hsort(struct he *hv, size_t n)
     QSORT(n, HE_LESS, HE_SWAP);
 }
 
-// A single try: hash all strings (with a particular seed) and check
-// if there are collisions.
-static void try(struct he *hv, size_t n, struct slab *slab, uint64_t seed)
+// A single try: hash all strings on the slab (with a particular seed)
+// and check if there are collisions.
+void try(struct slab *slab, size_t n, uint64_t seed, struct he *hv)
 {
     uint32_t so = 1;
     for (size_t i = 0; i < n; i++) {
@@ -114,6 +115,7 @@ static void try(struct he *hv, size_t n, struct slab *slab, uint64_t seed)
 	    he++;
 	    continue;
 	}
+	flockfile(stdout);
 	printf("%016" PRIx64 " %016" PRIx64 " %s\n",
 		seed, h, (char *) slab_get(slab, he[-1].so));
 	do {
@@ -121,11 +123,41 @@ static void try(struct he *hv, size_t n, struct slab *slab, uint64_t seed)
 		    seed, h, (char *) slab_get(slab, he->so));
 	    he++;
 	} while (h == he->h);
+	funlockfile(stdout);
     }
 }
 
-int main()
+struct arg {
+    struct slab *slab;
+    size_t n;
+    uint64_t seed;
+    int ntry;
+};
+
+void *job(void *arg_)
 {
+    struct arg *arg = arg_;
+    struct he *hv = malloc((arg->n + 1) * sizeof(struct he));
+    assert(hv);
+
+    do {
+	try(arg->slab, arg->n, arg->seed, hv);
+	arg->seed = arg->seed * UINT64_C(6364136223846793005) + 1;
+    } while (--arg->ntry > 0);
+
+    free(hv);
+    return NULL;
+}
+
+int main(int argc, char **argv)
+{
+    int nlog = 6;
+    if (argc > 1) {
+	assert(argc == 2);
+	nlog = atoi(argv[1]);
+	assert(nlog > 0 && nlog < 32);
+    }
+
     struct slab slab;
     slab_init(&slab);
 
@@ -147,20 +179,20 @@ int main()
     }
     free(line);
 
-    struct he *hv = malloc((n + 1) * sizeof(struct he));
-    assert(hv);
-
     uint64_t seed[2];
     void *auxrnd = (void *) getauxval(AT_RANDOM);
     assert(auxrnd);
     memcpy(&seed, auxrnd, 16);
 
-#define NTRY 4
-    for (int i = 0; i < NTRY; i++) {
-	try(hv, n, &slab, seed[0]);
-	try(hv, n, &slab, seed[1]);
-	seed[0] = seed[0] * 6364136223846793005 + 1;
-	seed[1] = seed[1] * 6364136223846793005 + 1;
-    }
+    int ntry = 1 << (nlog - 1);
+    struct arg arg0 = { &slab, n, seed[0], ntry };
+    struct arg arg1 = { &slab, n, seed[1], ntry };
+    pthread_t thread;
+    int rc = pthread_create(&thread, NULL, job, &arg0);
+    assert(rc == 0);
+    job(&arg1);
+    rc = pthread_join(thread, NULL);
+    assert(rc == 0);
+
     return 0;
 }
