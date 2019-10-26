@@ -26,13 +26,28 @@
 #include <pthread.h>
 #include <sys/auxv.h>
 
+static inline uint32_t rotl32(uint32_t x, int k) { return x << k | x >> (32 - k); }
+static inline uint32_t rotr32(uint32_t x, int k) { return x >> k | x << (32 - k); }
+static inline uint64_t rotl64(uint64_t x, int k) { return x << k | x >> (64 - k); }
+static inline uint64_t rotr64(uint64_t x, int k) { return x >> k | x << (64 - k); }
+
+// A known-good mixing step, by Pelle Evensen.
+static inline uint64_t rrmxmx(uint64_t x)
+{
+    x ^= rotr64(x, 49) ^ rotr64(x, 24);
+    x *= UINT64_C(0x9FB21C651E98DF25);
+    x ^= x >> 28;
+    x *= UINT64_C(0x9FB21C651E98DF25);
+    x ^= x >> 28;
+    return x;
+}
+
 static inline void update(uint32_t state[2], const uint32_t data[2])
 {
     uint32_t x0 = state[0] + data[0];
     uint32_t x1 = state[1] + data[1];
     uint32_t m0 = (uint16_t) x0 * (x0 >> 16);
     uint32_t m1 = (uint16_t) x1 * (x1 >> 16);
-#define rotl32(x, k) (x << k | x >> (32 - k))
     state[0] = m0 + rotl32(x1, 16);
     state[1] = m1 + rotl32(x0, 16);
 #if 0 // second injection
@@ -46,16 +61,6 @@ static inline void feed(uint32_t state[2], const void *data)
     uint32_t hunk[2];
     memcpy(&hunk, data, 8);
     update(state, hunk);
-}
-
-static inline uint64_t avalanche64(uint64_t x)
-{
-    x ^= x >> 33;
-    x *= UINT64_C(0xff51afd7ed558ccd);
-    x ^= x >> 33;
-    x *= UINT64_C(0xc4ceb9fe1a85ec53);
-    x ^= x >> 33;
-    return x;
 }
 
 uint64_t hash(const void *data, size_t len, uint64_t seed)
@@ -72,7 +77,7 @@ uint64_t hash(const void *data, size_t len, uint64_t seed)
     feed(state, last8);
     uint64_t h = (uint64_t) state[1] << 32 | state[0];
     uint64_t xlen = len * UINT64_C(6364136223846793005);
-    return avalanche64(h) ^ xlen;
+    return rrmxmx(h) ^ xlen;
 }
 
 #include "slab.h"
