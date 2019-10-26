@@ -174,8 +174,11 @@ int main(int argc, char **argv)
 	if (len < MINLEN)
 	    continue;
 	line[len] = '\0';
-	slab_put(&slab, line, len + 1);
+	uint32_t so = slab_put(&slab, line, len + 1);
 	n++;
+	// slab offsets limited to 4G
+	if (so > (UINT32_C(63) << 26))
+	    break;
     }
     free(line);
 
