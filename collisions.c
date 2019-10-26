@@ -42,43 +42,7 @@ static inline uint64_t rrmxmx(uint64_t x)
     return x;
 }
 
-static inline void update(uint32_t state[2], const uint32_t data[2])
-{
-    uint32_t x0 = state[0] + data[0];
-    uint32_t x1 = state[1] + data[1];
-    uint32_t m0 = (uint16_t) x0 * (x0 >> 16);
-    uint32_t m1 = (uint16_t) x1 * (x1 >> 16);
-    state[0] = m0 + rotl32(x1, 16);
-    state[1] = m1 + rotl32(x0, 16);
-#if 0 // second injection
-    state[0] ^= data[0];
-    state[1] ^= data[1];
-#endif
-}
-
-static inline void feed(uint32_t state[2], const void *data)
-{
-    uint32_t hunk[2];
-    memcpy(&hunk, data, 8);
-    update(state, hunk);
-}
-
-uint64_t hash(const void *data, size_t len, uint64_t seed)
-{
-    uint32_t state[2];
-    memcpy(state, &seed, 8);
-    const void *last8 = data + len - 8;
-#define MINLEN 8
-    assert(len >= MINLEN);
-    do {
-	feed(state, data);
-	data += 8;
-    } while (data < last8);
-    feed(state, last8);
-    uint64_t h = (uint64_t) state[1] << 32 | state[0];
-    uint64_t xlen = len * UINT64_C(6364136223846793005);
-    return rrmxmx(h) ^ xlen;
-}
+#include "hash1.h"
 
 #include "slab.h"
 #include "qsort.h"
