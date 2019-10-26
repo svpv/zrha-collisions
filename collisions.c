@@ -42,7 +42,11 @@ static inline uint64_t rrmxmx(uint64_t x)
     return x;
 }
 
-#include "hash1.h"
+#if 0
+#include "hash1.h" // the original construction, non-reversible mixing
+#else
+#include "hash2.h" // the improved construction with 3 states
+#endif
 
 #include "slab.h"
 #include "qsort.h"
