@@ -42,7 +42,34 @@ static inline void update2(uint32_t x[2], uint32_t y[2], const void *p)
 
 static uint64_t hash(const void *data, size_t len, uint64_t seed)
 {
-    // The state is equivalent to 3 SIMD registers.
+    // We have two variants: state[4] (two states) and state[6] (three states).
+    // Two states are absolutely required for the update2 construction to work,
+    // while three states allude to a practical implementation with 3 SIMD
+    // registres.  We need the latter variant to study how to merge the states,
+    // but its bigger state makes it a bit harder to find collisions.
+#if 0
+    uint32_t state[4] = {
+	seed, seed >> 32,
+	seed, seed >> 32,
+    };
+    const void *last8 = data + len - 8;
+    if (len & 8) {
+	update2(state + 2, state + 0, data + 0);
+	data += 8;
+    }
+    while (data < last8) {
+	update2(state + 0, state + 2, data + 0);
+	update2(state + 2, state + 0, data + 8);
+	data += 16;
+    }
+    update2(state + 0, state + 2, last8);
+    // Here we only study the update construction.  To produce the final
+    // hash value, we resort to a known-good mixing step.
+    uint64_t h[2];
+    memcpy(h, state, sizeof h);
+    uint64_t xlen = len * UINT64_C(6364136223846793005);
+    return rrmxmx(h[0]) + (rrmxmx(h[1]) ^ xlen);
+#else
     uint32_t state[6] = {
 	seed, seed >> 32,
 	seed, seed >> 32,
@@ -74,4 +101,5 @@ static uint64_t hash(const void *data, size_t len, uint64_t seed)
     memcpy(h, state, sizeof h);
     uint64_t xlen = len * UINT64_C(6364136223846793005);
     return (rrmxmx(h[0]) ^ xlen) + (rrmxmx(h[1]) ^ rrmxmx(h[2]));
+#endif
 }
