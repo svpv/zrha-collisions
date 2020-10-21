@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Alexey Tourbin
+// Copyright (c) 2019, 2020 Alexey Tourbin
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,6 @@ static inline uint64_t rrmxmx(uint64_t x)
 #endif
 
 #include "slab.h"
-#include "qsort.h"
 
 // To detect collisions, these "hash entries" are sorted.
 #pragma pack(push, 4)
@@ -62,10 +61,56 @@ static_assert(sizeof(struct he) == 12, "");
 
 void hsort(struct he *hv, size_t n)
 {
-    struct he he;
-#define HE_LESS(i, j) hv[i].h < hv[j].h
-#define HE_SWAP(i, j) he = hv[i], hv[i] = hv[j], hv[j] = he
-    QSORT(n, HE_LESS, HE_SWAP);
+    if (n & 1)
+	hv[n++] = (struct he) { UINT64_MAX, 0 };
+    struct he *hw = hv + n;
+    uint32_t d[8][256] = { 0, };
+    for (size_t i = 0; i < n; i++) {
+	uint64_t h = hv[i].h;
+	d[0][(uint8_t)(h >> 0*8)]++;
+	d[1][(uint8_t)(h >> 1*8)]++;
+	d[2][(uint8_t)(h >> 2*8)]++;
+	d[3][(uint8_t)(h >> 3*8)]++;
+	d[4][(uint8_t)(h >> 4*8)]++;
+	d[5][(uint8_t)(h >> 5*8)]++;
+	d[6][(uint8_t)(h >> 6*8)]++;
+	d[7][(uint8_t)(h >> 7*8)]++;
+    }
+    uint32_t y0 = 0;
+    uint32_t y1 = 0;
+    uint32_t y2 = 0;
+    uint32_t y3 = 0;
+    uint32_t y4 = 0;
+    uint32_t y5 = 0;
+    uint32_t y6 = 0;
+    uint32_t y7 = 0;
+    for (size_t i = 0; i < 256; i++) {
+	uint32_t x0 = d[0][i]; d[0][i] = y0, y0 += x0;
+	uint32_t x1 = d[1][i]; d[1][i] = y1, y1 += x1;
+	uint32_t x2 = d[2][i]; d[2][i] = y2, y2 += x2;
+	uint32_t x3 = d[3][i]; d[3][i] = y3, y3 += x3;
+	uint32_t x4 = d[4][i]; d[4][i] = y4, y4 += x4;
+	uint32_t x5 = d[5][i]; d[5][i] = y5, y5 += x5;
+	uint32_t x6 = d[6][i]; d[6][i] = y6, y6 += x6;
+	uint32_t x7 = d[7][i]; d[7][i] = y7, y7 += x7;
+    }
+#define RadixLoop(D, V, W)					\
+    for (size_t i = 0; i < n; i += 2) {				\
+	struct he e0 = V[i+0];					\
+	struct he e1 = V[i+1];					\
+	size_t j0 = d[D][(uint8_t)(e0.h >> D*8)]++;		\
+	size_t j1 = d[D][(uint8_t)(e1.h >> D*8)]++;		\
+	W[j0] = e0;						\
+	W[j1] = e1;						\
+    }
+    RadixLoop(0, hv, hw)
+    RadixLoop(1, hw, hv)
+    RadixLoop(2, hv, hw)
+    RadixLoop(3, hw, hv)
+    RadixLoop(4, hv, hw)
+    RadixLoop(5, hw, hv)
+    RadixLoop(6, hv, hw)
+    RadixLoop(7, hw, hv)
 }
 
 // A single try: hash all strings on the slab (with a particular seed)
@@ -110,7 +155,7 @@ struct arg {
 void *job(void *arg_)
 {
     struct arg *arg = arg_;
-    struct he *hv = malloc((arg->n + 1) * sizeof(struct he));
+    struct he *hv = malloc(2 * (arg->n + 1) * sizeof(struct he));
     assert(hv);
 
     do {
