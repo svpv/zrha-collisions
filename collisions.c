@@ -66,15 +66,18 @@ void hsort(struct he *hv, size_t n)
     struct he *hw = hv + n;
     uint32_t d[8][256] = { 0, };
     for (size_t i = 0; i < n; i++) {
-	uint64_t h = hv[i].h;
-	d[0][(uint8_t)(h >> 0*8)]++;
-	d[1][(uint8_t)(h >> 1*8)]++;
-	d[2][(uint8_t)(h >> 2*8)]++;
-	d[3][(uint8_t)(h >> 3*8)]++;
-	d[4][(uint8_t)(h >> 4*8)]++;
-	d[5][(uint8_t)(h >> 5*8)]++;
-	d[6][(uint8_t)(h >> 6*8)]++;
-	d[7][(uint8_t)(h >> 7*8)]++;
+	void *p = &hv[i].h;
+	uint32_t h0, h4;
+	memcpy(&h0, p + 0, 4);
+	memcpy(&h4, p + 4, 4);
+	d[0][(uint8_t)(h0 >> 0*8)]++;
+	d[1][(uint8_t)(h0 >> 1*8)]++;
+	d[2][(uint8_t)(h0 >> 2*8)]++;
+	d[3][(uint8_t)(h0 >> 3*8)]++;
+	d[4][(uint8_t)(h4 >> 0*8)]++;
+	d[5][(uint8_t)(h4 >> 1*8)]++;
+	d[6][(uint8_t)(h4 >> 2*8)]++;
+	d[7][(uint8_t)(h4 >> 3*8)]++;
     }
     uint32_t y0 = 0;
     uint32_t y1 = 0;
