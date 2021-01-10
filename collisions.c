@@ -27,6 +27,8 @@
 #include <pthread.h>
 #include <sys/auxv.h>
 
+static inline uint16_t rotl16(uint16_t x, int k) { return x << k | x >> (16 - k); }
+static inline uint16_t rotr16(uint16_t x, int k) { return x >> k | x << (16 - k); }
 static inline uint32_t rotl32(uint32_t x, int k) { return x << k | x >> (32 - k); }
 static inline uint32_t rotr32(uint32_t x, int k) { return x >> k | x << (32 - k); }
 static inline uint64_t rotl64(uint64_t x, int k) { return x << k | x >> (64 - k); }
@@ -43,11 +45,7 @@ static inline uint64_t rrmxmx(uint64_t x)
     return x;
 }
 
-#if 0
-#include "hash1.h" // the original construction, non-reversible mixing
-#else
-#include "hash2.h" // the improved construction with 2 or 3 states
-#endif
+#include INC // e.g. "hash1.h" the original construction
 
 #include "slab.h"
 
