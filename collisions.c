@@ -23,6 +23,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <sys/auxv.h>
 
@@ -148,43 +149,77 @@ void try(struct slab *slab, size_t n, uint64_t seed, struct he *hv)
     }
 }
 
-struct arg {
-    struct slab *slab;
-    size_t n;
-    uint64_t seed;
-    int ntry;
-};
+static __uint128_t rand64state;
 
-void *job(void *arg_)
+static __attribute__((constructor)) void rand64init(void)
 {
-    struct arg *arg = arg_;
-    struct he *hv = malloc(2 * (arg->n + 1) * sizeof(struct he));
-    assert(hv);
+    memcpy(&rand64state, (void *) getauxval(AT_RANDOM), 16);
+    rand64state |= 1;
+}
 
-    do {
-	try(arg->slab, arg->n, arg->seed, hv);
-	arg->seed = arg->seed * UINT64_C(6364136223846793005) + 1;
-    } while (--arg->ntry > 0);
+static inline uint64_t rand64(void)
+{
+    uint64_t ret = rand64state >> 64;
+    rand64state *= 0xda942042e4dd58b5;
+    return ret;
+}
 
-    free(hv);
-    return NULL;
+static struct {
+    struct slab slab;
+    uint32_t nstr;
+    pthread_mutex_t mutex;
+    int ntry;
+    int nthr;
+} G;
+
+void *worker(void *arg)
+{
+    struct he *hv = arg;
+    while (1) {
+	// lock
+	int rc = pthread_mutex_lock(&G.mutex);
+	assert(rc == 0);
+	// critical
+	int ntry = G.ntry--;
+	uint64_t seed = rand64();
+	// unlock
+	rc = pthread_mutex_unlock(&G.mutex);
+	assert(rc == 0);
+	// loop control
+	if (ntry <= 0)
+	    break;
+	try(&G.slab, G.nstr, seed, hv);
+    }
+    return arg;
 }
 
 int main(int argc, char **argv)
 {
-    int nlog = 6;
-    if (argc > 1) {
-	assert(argc == 2);
-	nlog = atoi(argv[1]);
-	assert(nlog > 0 && nlog < 32);
-    }
+#define MAXTHR 32
+    G.ntry = 16;
+    G.nthr = 2;
 
-    struct slab slab;
-    slab_init(&slab);
+    int opt;
+    while ((opt = getopt(argc, argv, "j:")) != -1)
+    switch (opt) {
+    case 'j':
+	G.nthr = atoi(optarg);
+	assert(G.nthr > 0 && G.nthr <= MAXTHR);
+	break;
+    default:
+	assert(!!!"getopt");
+    }
+    if (optind < argc) {
+	assert(optind + 1 == argc);
+	G.ntry = atoi(argv[optind]);
+	assert(G.ntry > 0);
+    }
+    assert(G.ntry >= G.nthr);
+
+    slab_init(&G.slab);
 
     char *line = NULL;
     size_t alloc = 0;
-    size_t n = 0;
     while (1) {
 	ssize_t len = getline(&line, &alloc, stdin);
 	if (len < 0)
@@ -195,28 +230,27 @@ int main(int argc, char **argv)
 	if (len < MINLEN)
 	    continue;
 	line[len] = '\0';
-	uint32_t so = slab_put(&slab, line, len + 1);
-	n++;
+	uint32_t so = slab_put(&G.slab, line, len + 1);
+	G.nstr++;
 	// slab offsets limited to 4G
 	if (so > (UINT32_C(63) << 26))
 	    break;
     }
     free(line);
 
-    uint64_t seed[2];
-    void *auxrnd = (void *) getauxval(AT_RANDOM);
-    assert(auxrnd);
-    memcpy(&seed, auxrnd, 16);
-
-    int ntry = 1 << (nlog - 1);
-    struct arg arg0 = { &slab, n, seed[0], ntry };
-    struct arg arg1 = { &slab, n, seed[1], ntry };
-    pthread_t thread;
-    int rc = pthread_create(&thread, NULL, job, &arg0);
-    assert(rc == 0);
-    job(&arg1);
-    rc = pthread_join(thread, NULL);
-    assert(rc == 0);
-
+    pthread_t tid[MAXTHR];
+    pthread_mutex_init(&G.mutex, NULL);
+    for (int i = 0; i < G.nthr; i++) {
+	void *mem = malloc(2 * (G.nstr + 1) * sizeof(struct he));
+	assert(mem);
+	int rc = pthread_create(&tid[i], NULL, worker, mem);
+	assert(rc == 0);
+    }
+    for (int i = 0; i < G.nthr; i++) {
+	void *mem;
+	int rc = pthread_join(tid[i], &mem);
+	assert(rc == 0);
+	free(mem);
+    }
     return 0;
 }
