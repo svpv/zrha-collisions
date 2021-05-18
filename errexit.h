@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2021 Alexey Tourbin
+// Copyright (c) 2016, 2018, 2021 Alexey Tourbin
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,45 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// A slab is a big chunk of memory to which objects are placed back to back.
-// Objects are identified by their 32-bit offset (or "position") in the slab.
-// Poistion 0 is reserved, and may serve as NULL.
-
+#include <stdio.h>
+#include <stdlib.h>
 #include "platform.h"
 
-struct slab {
-    uchar *base;
-    uint32_t alloc;
-    uint32_t fill;
-};
+#define PROG "pkgelfsym"
+#define warn(fmt, args...) fprintf(stderr, PROG ": " fmt "\n", ##args)
+#define die(fmt, args...) warn(fmt, ##args), exit(128) // like git
 
-void slab_init(struct slab *slab);
-void slab_fini(struct slab *slab);
-
-void slab_resize(struct slab *slab, size_t size);
-
-static inline void slab_reserve(struct slab *slab, size_t size)
+static inline void *xmalloc_(const char *func, size_t n)
 {
-    size += slab->fill;
-    if (unlikely(size > slab->alloc))
-	slab_resize(slab, size);
+    void *p = malloc(n);
+    if (unlikely(!p))
+	die("%s: %m", func);
+    return p;
 }
 
-static inline uint32_t slab_copy(struct slab *slab, void *src, size_t size)
+static inline void *xrealloc_(const char *func, void *p, size_t n)
 {
-    uint32_t pos = slab->fill;
-    memcpy(slab->base + pos, src, size);
-    slab->fill += size;
-    return pos;
+    p = realloc(p, n);
+    if (unlikely(!p))
+	die("%s: %m", func);
+    return p;
 }
 
-static inline uint32_t slab_put(struct slab *slab, void *src, size_t size)
-{
-    slab_reserve(slab, size);
-    return slab_copy(slab, src, size);
-}
-
-static inline void *slab_get(struct slab *slab, uint32_t pos)
-{
-    return slab->base + pos;
-}
+#define xmalloc(n) xmalloc_(__func__, n)
+#define xrealloc(p, n) xrealloc_(__func__, p, n)

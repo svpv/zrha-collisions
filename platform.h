@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2021 Alexey Tourbin
+// Copyright (c) 2020 Alexey Tourbin
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,45 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// A slab is a big chunk of memory to which objects are placed back to back.
-// Objects are identified by their 32-bit offset (or "position") in the slab.
-// Poistion 0 is reserved, and may serve as NULL.
+#pragma once
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <assert.h>
 
-#include "platform.h"
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(x, 0)
 
-struct slab {
-    uchar *base;
-    uint32_t alloc;
-    uint32_t fill;
-};
+#define inline inline __attribute__((always_inline))
 
-void slab_init(struct slab *slab);
-void slab_fini(struct slab *slab);
-
-void slab_resize(struct slab *slab, size_t size);
-
-static inline void slab_reserve(struct slab *slab, size_t size)
+static inline uint16_t load16le(const void *p)
 {
-    size += slab->fill;
-    if (unlikely(size > slab->alloc))
-	slab_resize(slab, size);
+    uint16_t x;
+    memcpy(&x, p, 2);
+#if defined(__GNUC__) && __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+    x = __builtin_bswap16(x);
+#endif
+    return x;
 }
 
-static inline uint32_t slab_copy(struct slab *slab, void *src, size_t size)
+static inline void store16le(void *p, uint16_t x)
 {
-    uint32_t pos = slab->fill;
-    memcpy(slab->base + pos, src, size);
-    slab->fill += size;
-    return pos;
+#if defined(__GNUC__) && __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+    x = __builtin_bswap16(x);
+#endif
+    memcpy(p, &x, 2);
 }
 
-static inline uint32_t slab_put(struct slab *slab, void *src, size_t size)
-{
-    slab_reserve(slab, size);
-    return slab_copy(slab, src, size);
-}
-
-static inline void *slab_get(struct slab *slab, uint32_t pos)
-{
-    return slab->base + pos;
-}
+// ~/.vim/after/syntax/c.vim:
+// syn keyword cType uchar uint
+typedef unsigned char uchar;
+typedef unsigned int uint;
