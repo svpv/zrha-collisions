@@ -121,13 +121,15 @@ void hsort(struct he *hv, size_t n)
 // and check if there are collisions.
 void try(struct slab *slab, size_t n, uint64_t seed, struct he *hv)
 {
-    uint32_t so = 1;
+    uint32_t so = 3;
+    const char *s;
+    uint16_t len;
     for (size_t i = 0; i < n; i++) {
-	const char *s = slab_get(slab, so);
-	size_t len = MINLEN + strlen(s + MINLEN);
+	s = slab_get(slab, so);
+	memcpy(&len, s - 2, 2);
 	uint64_t h = hash(s, len, seed);
 	hv[i] = (struct he){ h, so };
-	so += len + 1;
+	so += len + 2;
     }
     hsort(hv, n);
     hv[n] = (struct he) { ~hv[n-1].h, 0 }; // sentinel
@@ -138,11 +140,13 @@ void try(struct slab *slab, size_t n, uint64_t seed, struct he *hv)
 	    continue;
 	}
 	flockfile(stdout);
-	printf("%016" PRIx64 " %016" PRIx64 " %s\n",
-		seed, h, (char *) slab_get(slab, he[-1].so));
+	s = slab_get(slab, he[-1].so);
+	memcpy(&len, s - 2, 2);
+	printf("%016" PRIx64 " %016" PRIx64 " %.*s\n", seed, h, len, s);
 	do {
-	    printf("%016" PRIx64 " %016" PRIx64 " %s\n",
-		    seed, h, (char *) slab_get(slab, he->so));
+	    s = slab_get(slab, he->so);
+	    memcpy(&len, s - 2, 2);
+	    printf("%016" PRIx64 " %016" PRIx64 " %.*s\n", seed, h, len, s);
 	    he++;
 	} while (h == he->h);
 	funlockfile(stdout);
@@ -229,12 +233,13 @@ int main(int argc, char **argv)
 	assert(line[len] == '\n');
 	if (len < MINLEN)
 	    continue;
-	line[len] = '\0';
-	uint32_t so = slab_put(&G.slab, line, len + 1);
+	if (len > UINT16_MAX)
+	    continue;
+	slab_reserve(&G.slab, 2 + len);
+	uint16_t len16 = len;
+	slab_copy(&G.slab, &len16, 2);
+	slab_copy(&G.slab, line, len);
 	G.nstr++;
-	// slab offsets limited to 4G
-	if (so > (UINT32_C(63) << 26))
-	    break;
     }
     free(line);
 
