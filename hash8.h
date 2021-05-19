@@ -61,22 +61,21 @@ static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t
     F5(y, my);
 }
 
-#define MINLEN 8
-
-static uint64_t hash(const void *data, size_t len, uint64_t seed)
+static uint64_t hash(const char *s, size_t len, uint64_t seed)
 {
     uint16_t x[4], d[4];
-    memcpy(&x, &seed, 8);
-    const void *last8 = data + len - 8;
-    while (data < last8) {
-	memcpy(&d, data, 8);
+    memcpy(x, &seed, 8);
+    while (len > 8) {
+	memcpy(&d, s, 8);
 	update(&x[0], &x[2], &d[0], &d[2]);
-	data += 8;
+	s += 8, len -= 8;
     }
-    memcpy(&d, last8, 8);
+    char buf[16];
+    memcpy(buf, s, 8);
+    memset(buf + len, 0, 8);
+    memcpy(&d, buf, 8);
     update(&x[0], &x[2], &d[0], &d[2]);
-    uint64_t xlen = len * UINT64_C(6364136223846793005);
     uint64_t h;
     memcpy(&h, x, 8);
-    return rrmxmx(h) ^ xlen;
+    return rrmxmx(h);
 }

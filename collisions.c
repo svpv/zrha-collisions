@@ -47,6 +47,10 @@ static inline uint64_t rrmxmx(uint64_t x)
 
 #include INC // e.g. "hash1.h" the original construction
 
+#ifndef MINLEN
+#define MINLEN 1
+#endif
+
 #include "slab.h"
 
 // To detect collisions, these "hash entries" are sorted.
@@ -117,7 +121,7 @@ void hsort(struct he *hv, size_t n)
 
 // A single try: hash all strings on the slab (with a particular seed)
 // and check if there are collisions.
-void try(struct slab *slab, size_t n, uint64_t seed, struct he *hv)
+void try(const struct slab *slab, size_t n, uint64_t seed, struct he *hv)
 {
     uint32_t so = 3;
     const char *s;
@@ -240,6 +244,8 @@ int main(int argc, char **argv)
 	G.nstr++;
     }
     free(line);
+    const char pad[64] = "";
+    slab_put(&G.slab, pad, sizeof pad);
 
     pthread_t tid[MAXTHR];
     pthread_mutex_init(&G.mutex, NULL);
