@@ -77,5 +77,5 @@ static uint64_t hash(const char *s, size_t len, uint64_t seed)
     update(&x[0], &x[2], &d[0], &d[2]);
     uint64_t h;
     memcpy(&h, x, 8);
-    return rrmxmx(h);
+    return h;
 }
