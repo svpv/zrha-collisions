@@ -48,17 +48,21 @@ static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t
 {
     F0(x, dx);
     F1(y, dy);
+#ifndef MUL0
     uint16_t mx[2], my[2];
     mx[0] = (uint8_t) x[0] * (y[0] >> 8);
     mx[1] = (uint8_t) x[1] * (y[1] >> 8);
     my[0] = (uint8_t) y[0] * (x[1] >> 8);
     my[1] = (uint8_t) y[1] * (x[0] >> 8);
+#endif
     Shuf(y);
     F2(x, dy);
     F3(y, dx);
     Shuf(x);
+#ifndef MUL0
     F4(x, mx);
     F5(y, my);
+#endif
 }
 
 static uint64_t hash(const char *s, size_t len, uint64_t seed)
