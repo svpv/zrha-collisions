@@ -55,8 +55,8 @@ static inline void updateA(uint16_t x[2], uint16_t y[2])
     my[1] = (uint8_t) y[1] * (y[1] >> 8);
     mx[0] += rotl16(x[1], 8);
     mx[1] += rotl16(x[0], 8);
-    my[0] += rotl16(y[1], 8);
-    my[1] += rotl16(y[0], 8);
+    my[0] += y[1];
+    my[1] += y[0];
     x[0] = mx[0];
     x[1] = mx[1];
     y[0] = my[0];
@@ -75,8 +75,8 @@ static inline void updateB(uint16_t x[2], uint16_t y[2])
     my[1] = (uint8_t) y[1] * (x[1] >> 8);
     mx[0] += rotl16(x[1], 8);
     mx[1] += rotl16(x[0], 8);
-    my[0] += rotl16(y[1], 8);
-    my[1] += rotl16(y[0], 8);
+    my[0] += y[1];
+    my[1] += y[0];
     x[0] = mx[0];
     x[1] = mx[1];
     y[0] = my[0];
@@ -94,8 +94,8 @@ static inline void updateC(uint16_t x[2], uint16_t y[2])
     my[1] = (uint8_t) y[1] * (x[0] >> 8);
     mx[0] += rotl16(x[1], 8);
     mx[1] += rotl16(x[0], 8);
-    my[0] += rotl16(y[1], 8);
-    my[1] += rotl16(y[0], 8);
+    my[0] += y[1];
+    my[1] += y[0];
     x[0] = mx[0];
     x[1] = mx[1];
     y[0] = my[0];
