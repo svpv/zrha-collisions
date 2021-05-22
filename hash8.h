@@ -36,20 +36,14 @@ static inline void Sub(uint16_t x[2], uint16_t a[2])
     x[1] -= a[1];
 }
 
-static inline void Shuf2310(uint16_t x[2])
+static inline void Shuf(uint16_t z[2], int i0, int i1, int i2, int i3)
 {
-    uint16_t x0 = rotl16(x[0], 8);
-    uint16_t x1 = x[1];
-    x[0] = x1;
-    x[1] = x0;
-}
-
-static inline void Shuf3210(uint16_t x[2])
-{
-    uint16_t x0 = rotl16(x[0], 8);
-    uint16_t x1 = rotl16(x[1], 8);
-    x[0] = x1;
-    x[1] = x0;
+    unsigned char x[4], *y = (void *) z;
+    memcpy(x, z, 4);
+    y[0] = x[i0];
+    y[1] = x[i1];
+    y[2] = x[i2];
+    y[3] = x[i3];
 }
 
 static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t dy[2])
@@ -63,10 +57,10 @@ static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t
     my[0] = (uint8_t) y[0] * (x[1] >> 8);
     my[1] = (uint8_t) y[1] * (x[0] >> 8);
 #endif
-    Shuf2310(y);
+    Shuf(y, SHUF0);
     F2(x, dy);
     F3(y, dx);
-    Shuf3210(x);
+    Shuf(x, SHUF1);
 #ifndef MUL0
     F4(x, mx);
     F5(y, my);
