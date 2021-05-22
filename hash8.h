@@ -36,9 +36,9 @@ static inline void Sub(uint16_t x[2], uint16_t a[2])
     x[1] -= a[1];
 }
 
-static inline void Shuf2301(uint16_t x[2])
+static inline void Shuf2310(uint16_t x[2])
 {
-    uint16_t x0 = x[0];
+    uint16_t x0 = rotl16(x[0], 8);
     uint16_t x1 = x[1];
     x[0] = x1;
     x[1] = x0;
@@ -63,7 +63,7 @@ static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t
     my[0] = (uint8_t) y[0] * (x[1] >> 8);
     my[1] = (uint8_t) y[1] * (x[0] >> 8);
 #endif
-    Shuf2301(y);
+    Shuf2310(y);
     F2(x, dy);
     F3(y, dx);
     Shuf3210(x);
