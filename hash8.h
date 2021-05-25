@@ -46,6 +46,23 @@ static inline void Shuf(uint16_t z[2], int i0, int i1, int i2, int i3)
     y[3] = x[i3];
 }
 
+#ifndef F0
+#define F0 Xor
+#define F1 Xor
+#define F2 Add
+#define F3 Sub
+#endif
+
+#ifndef F4
+#define F4 Add
+#define F5 Add
+#endif
+
+#ifndef SHUF0
+#define SHUF0 3,2,0,1
+#define SHUF1 2,3,1,0
+#endif
+
 static inline void update(uint16_t x[2], uint16_t y[2], uint16_t dx[2], uint16_t dy[2])
 {
     F0(x, dx);
